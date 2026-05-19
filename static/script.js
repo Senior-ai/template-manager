@@ -16,9 +16,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const today = new Date().toISOString().split('T')[0];
     gvcDateInput.value = today;
 
-    timezoneSelect.value = localStorage.getItem('timezone') || 'UTC+2';
+    const savedTimezoneIndex = localStorage.getItem('timezoneIndex');
+    if (savedTimezoneIndex !== null && timezoneSelect.options[savedTimezoneIndex]) {
+        timezoneSelect.selectedIndex = parseInt(savedTimezoneIndex, 10);
+    }
     workingDaysSelect.value = localStorage.getItem('workingDays') || 'Sun-Thu';
     agentNameInput.value = localStorage.getItem('agentName') || '';
+    startTimeSelect.value = localStorage.getItem('startTime') || startTimeSelect.value;
+    endTimeSelect.value = localStorage.getItem('endTime') || endTimeSelect.value;
+    if (fullSignatureCheckbox) {
+        const savedFullSig = localStorage.getItem('fullSignature');
+        if (savedFullSig !== null) {
+            fullSignatureCheckbox.checked = savedFullSig === 'true';
+        }
+    }
 
     // Store the original template text
     let originalTemplate = '';
@@ -194,37 +205,62 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    const storageKeyById = {
+        'timezone-select': 'timezoneIndex',
+        'start-time': 'startTime',
+        'end-time': 'endTime',
+        'working-days': 'workingDays',
+        'agent-name': 'agentName',
+        'gvc-date': 'gvcDate',
+    };
+
     // Trigger update whenever any of these fields change
     [timezoneSelect, startTimeSelect, endTimeSelect, workingDaysSelect, agentNameInput, gvcDateInput].forEach(el => {
         el.addEventListener('change', () => {
             console.log(`Updated value for ${el.id}:`, el.value);
             updateSignature();
             updateTemplateContent();
-            localStorage.setItem(el.id.replace('-', ''), el.value);  // Store updated values
+            const key = storageKeyById[el.id];
+            if (key) {
+                const valueToStore = el === timezoneSelect ? String(el.selectedIndex) : el.value;
+                localStorage.setItem(key, valueToStore);
+            }
         });
     });
 
     // Initialize with the current stored values
     updateSignature();
 
+    function activateTab(tab, { clearTemplate = true } = {}) {
+        currentCategory = tab;
+
+        tabButtons.forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-tab') === tab);
+        });
+
+        tabContents.forEach(content => {
+            content.classList.toggle('active', content.id === tab);
+        });
+
+        gvcDateInput.style.display = tab === 'gvc' ? 'block' : 'none';
+        if (clearTemplate) {
+            templateContent.value = '';
+        }
+    }
+
     // Tab switching logic
     tabButtons.forEach(button => {
         button.addEventListener('click', () => {
             const tab = button.getAttribute('data-tab');
-            currentCategory = tab;
-
-            tabButtons.forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-
-            tabContents.forEach(content => {
-                content.classList.remove('active');
-                if (content.id === tab) content.classList.add('active');
-            });
-
-            gvcDateInput.style.display = tab === 'gvc' ? 'block' : 'none';
-            templateContent.value = '';  // Clear template content on tab switch
+            activateTab(tab);
+            localStorage.setItem('activeTab', tab);
         });
     });
+
+    const savedTab = localStorage.getItem('activeTab');
+    if (savedTab && document.querySelector(`.tab-button[data-tab="${savedTab}"]`)) {
+        activateTab(savedTab, { clearTemplate: false });
+    }
 
     // Handle template button clicks
     templateButtons.forEach(button => {
@@ -306,6 +342,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add event listener to update template when checkbox changes
     if (fullSignatureCheckbox) {
         fullSignatureCheckbox.addEventListener('change', () => {
+            localStorage.setItem('fullSignature', fullSignatureCheckbox.checked);
             updateSignature();
             updateTemplateContent();
         });
